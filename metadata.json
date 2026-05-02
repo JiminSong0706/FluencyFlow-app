@@ -1,0 +1,8 @@
+{
+  "name": "FluencyFlow AI",
+  "description": "An AI-powered English speaking focus practice app for middle school students, using compensation strategies to improve fluency.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

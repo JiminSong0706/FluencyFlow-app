@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user identification and global inventory.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher"] },
+        "collectedItems": {
+          "type": "array",
+          "description": "List of ornament IDs the user has earned.",
+          "items": { "type": "string" }
+        },
+        "sessionsCount": { "type": "number" },
+        "ornamentInventory": {
+          "type": "object",
+          "description": "Mapping of ornament IDs to count available for placing."
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "name", "role", "collectedItems", "sessionsCount", "ornamentInventory"]
+    },
+    "Session": {
+      "title": "Tutoring Session",
+      "description": "Results of a single speaking practice session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "turns": { "type": "number" },
+        "strategiesUsed": { "type": "array", "items": { "type": "string" } },
+        "pauseTime": { "type": "number", "description": "Total silence/pause duration in seconds" },
+        "translanguagingCount": { "type": "number", "description": "Number of times the student switched languages" },
+        "audioUrl": { "type": "string", "description": "URL to the recorded audio session" },
+        "overview": { "type": "object" },
+        "strategyPerformance": { "type": "object" },
+        "moments": { "type": "array" },
+        "alternatives": { "type": "array" },
+        "nextGoals": { "type": "array" },
+        "transcript": { "type": "array" },
+        "scenarioTitle": { "type": "string" },
+        "level": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "transcript", "scenarioTitle"]
+    },
+    "TreeDecoration": {
+      "title": "Tree Decoration",
+      "description": "A single ornament placed on the tree.",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["itemId", "x", "y"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "History of tutoring sessions."
+    },
+    "/users/{userId}/decorations/{decorationId}": {
+      "schema": "TreeDecoration",
+      "description": "Ornaments placed on the user's specific tree."
+    }
+  }
+}

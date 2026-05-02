@@ -1,0 +1,138 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow connection test
+    match /test/connection {
+      allow read: if isSignedIn();
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        (request.auth.token.get('email', '') != '' && request.auth.token.get('email', '').endsWith('@fluencyflow.app'))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.get('email', '') == 'chaewon2681@snu.ac.kr' || 
+        request.auth.token.get('email', '') == 'jimin6345@snu.ac.kr' ||
+        (request.auth.token.get('email', '') != '' && request.auth.token.get('email', '').endsWith('@fluencyflow.app'))
+      );
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'email', 'name', 'role', 'collectedItems', 'sessionsCount', 'ornamentInventory', 'updatedAt'])
+        && data.keys().size() == 8
+        && data.userId == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && data.name is string && data.name.size() <= 128
+        && data.role in ['student', 'teacher']
+        && data.collectedItems is list && data.collectedItems.size() <= 100
+        && (data.collectedItems.size() == 0 || data.collectedItems[0] is string)
+        && data.sessionsCount is number
+        && data.ornamentInventory is map
+        && (data.updatedAt is timestamp || (data.updatedAt is string && data.updatedAt.size() <= 128));
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'transcript', 'scenarioTitle'])
+        && data.id is string && data.id.size() <= 128
+        && data.timestamp is number
+        && data.transcript is list && data.transcript.size() <= 1000
+        && (data.transcript.size() == 0 || data.transcript[0] is map)
+        && data.scenarioTitle is string && data.scenarioTitle.size() <= 256
+        && (data.get('turns', null) == null || data.turns is number)
+        && (data.get('strategiesUsed', null) == null || (data.strategiesUsed is list && data.strategiesUsed.size() <= 50))
+        && (data.get('pauseTime', null) == null || data.pauseTime is number)
+        && (data.get('translanguagingCount', null) == null || data.translanguagingCount is number)
+        && (data.get('audioUrl', null) == null || (data.audioUrl is string && data.audioUrl.size() <= 1024))
+        && (data.get('overview', null) == null || data.overview is map)
+        && (data.get('strategyPerformance', null) == null || data.strategyPerformance is map)
+        && (data.get('moments', null) == null || data.moments is list)
+        && (data.get('alternatives', null) == null || data.alternatives is list)
+        && (data.get('nextGoals', null) == null || data.nextGoals is list)
+        && (data.get('level', null) == null || (data.level is string && data.level.size() <= 64));
+    }
+
+    function isValidDecoration(data) {
+      return data.keys().hasAll(['itemId', 'x', 'y'])
+        && data.itemId is string && data.itemId.size() <= 64
+        && data.x is number && data.x >= -10 && data.x <= 110
+        && data.y is number && data.y >= -10 && data.y <= 110
+        && (data.get('timestamp', null) == null || data.timestamp is number);
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isOwner(userId)
+        && isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) && (
+        // Action: Sync Student Profile
+        (incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'name', 'collectedItems', 'sessionsCount', 'ornamentInventory']) 
+         && isValidUserProfile(incoming())
+         && incoming().userId == existing().userId 
+         && incoming().email == existing().email
+         && incoming().role == existing().role)
+      ) || isAdmin();
+
+      match /sessions/{sessionId} {
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+        
+        allow create: if isOwner(userId) 
+          && isValidSession(incoming());
+          
+        allow delete: if isOwner(userId);
+      }
+
+      match /decorations/{decorationId} {
+        allow list, get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+        
+        allow create: if isOwner(userId)
+          && isValidDecoration(incoming());
+          
+        allow update: if isOwner(userId)
+          && isValidDecoration(incoming())
+          && incoming().itemId == existing().itemId; 
+
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Collection Group for Sessions (Admin Analysis)
+    match /{path=**}/sessions/{sessionId} {
+      allow list, get: if isAdmin();
+    }
+  }
+}
